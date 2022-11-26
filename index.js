@@ -101,8 +101,11 @@ async function start_scrape()
 
 		console.log(`Scraping VN ${i}...`);
 		let ret = await scrape_vn_and_save_to_db(i);
-		if (!ret)
-			break;
+		if (!ret) {
+			console.log(`Failed to scrape VN ${i}`);
+			i++;
+			continue;
+		}
 
 		console.log(`Successfully scraped VN ${i}`);
 		save_last_id(i);
