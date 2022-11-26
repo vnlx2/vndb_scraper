@@ -7,9 +7,13 @@ import fs from 'fs';
 
 config();
 
-async function get_vn_by_code(code)
+async function get_vn_by_code(codes)
 {
-	return await vndb.query(`get vn details,basic,stats (id = ${code})`);
+	try {
+		return await vndb.query(`get vn details,basic,stats (id = [${codes}])`);
+	} catch (err) {
+		console.error(err);
+	}
 }
 
 async function get_number_of_vndb_vns()
@@ -18,7 +22,6 @@ async function get_number_of_vndb_vns()
 
 	if (!("vn" in res))
 		throw Error("Error, vndb malformed response");
-
 	return res.vn;
 }
 
@@ -27,36 +30,65 @@ async function get_number_of_our_vns()
 	return await model.countDocuments();
 }
 
-async function insert_to_db(result)
+async function insert_to_db(results, currentCode)
 {
-	const body = {
-		code: result.id,
-		title: result.title,
-		aliases: result.aliases,
-		length: result.length,
-		rating: result.rating,
-		description: result.image,
-		image: result.image
-	};
-	const response = await model(body);
-	await response.save();
+	const documents = [];
+	let lastCode = currentCode;
+	for(const result of results) {
+		while(parseInt(currentCode) < parseInt(result.id)) {
+			console.log(`Failed to scrape VN ${currentCode}`);
+			currentCode++;
+		}
+		const body = {
+			code: result.id,
+			title: result.title,
+			aliases: result.aliases,
+			length: result.length,
+			rating: result.rating,
+			description: result.image,
+			image: result.image
+		};
+		documents.push(body);
+		lastCode = currentCode;
+		currentCode++;
+	}
+	/** 
+	 * When lastCode not reach multiple 10, return error
+	 * and add 1 to lastCode
+	*/  
+	if(lastCode % 10) {
+		lastCode++;
+		console.log(`Failed to scrape VN ${lastCode}`);
+	}
+
+	// Store vn data and return lastCode
+	const response = model;
+	await response.insertMany(documents);
+	return lastCode;
 }
 
-async function scrape_vn_and_save_to_db(code)
+async function scrape_vn_and_save_to_db(lastCode, remainsVN)
 {
-	const result = await get_vn_by_code(code);
+	// Generate vndb code sequences
+	const length = (remainsVN >= 10) ? 10 : remainsVN;
+	console.log(`Scraping VN ${lastCode} - ${lastCode + length - 1}...`);
+	const codes = [...Array(length).keys()].map(code => code + lastCode);
+
+	// Get VN data
+	const result = await get_vn_by_code(codes);
 	if (!result) {
 		console.log("Internal error");
-		return false;
+		return {
+			status: false,
+			lastCode: lastCode
+		};
 	}
 
-	if (result.items.length == 0) {
-		console.log(`VN ${code} is not found`);
-		return false;
-	}
-
-	insert_to_db(result.items[0]);
-	return true;
+	lastCode = await insert_to_db(result.items, lastCode);
+	return {
+		status: true,
+		lastCode: lastCode
+	};
 }
 
 function save_last_id(id)
@@ -91,25 +123,18 @@ function sleep(ms)
 async function start_scrape()
 {
 	let i = get_last_id() + 1;
+	let nr_vns_vndb = await get_number_of_vndb_vns();
 
 	while (true) {
-		let nr_vns_ours = get_number_of_our_vns();
-		let nr_vns_vndb = get_number_of_vndb_vns();
+		let nr_vns_ours = await get_number_of_our_vns();
+		let remains = nr_vns_vndb - nr_vns_ours;
 
 		if (nr_vns_vndb == nr_vns_ours)
 			break;
-
-		console.log(`Scraping VN ${i}...`);
-		let ret = await scrape_vn_and_save_to_db(i);
-		if (!ret) {
-			console.log(`Failed to scrape VN ${i}`);
-			i++;
-			continue;
-		}
-
-		console.log(`Successfully scraped VN ${i}`);
-		save_last_id(i);
-		i++;
+		let ret = await scrape_vn_and_save_to_db(i, remains);
+		console.log(`Successfully scraped VN ${i} - ${ret.lastCode}`);
+		save_last_id(ret.lastCode);
+		i = ret.lastCode + 1;
 		await sleep(1000);
 	}
 	process.exit();
@@ -117,6 +142,7 @@ async function start_scrape()
 
 function main()
 {
+	console.log(`VNDB Scraper ${process.env.VERSION}`);
 	mongoose.connect(process.env.MONGODB_URI, {
 		useNewUrlParser: true,
 		useUnifiedTopology: true
