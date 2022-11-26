@@ -1,0 +1,14 @@
+{
+  "name": "vndb_scraper",
+  "version": "1.0.0",
+  "description": "VNDB Scrapper for ATRI",
+  "main": "index.js",
+  "repository": "git@github.com:vnlx2/vndb_scraper.git",
+  "author": "Taufiq Pohan <m.taufiq30s@hotmail.com>",
+  "license": "GPLv2",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "mongose": "^0.0.2-security",
+    "vndb-api": "^1.0.3"
+  }
+}
