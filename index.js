@@ -71,12 +71,12 @@ function save_last_id(id)
 function get_last_id()
 {
 	if (!fs.existsSync('./vn-stats.json'))
-		return 1;
+		return 0;
 
 	const jsonVal = fs.readFileSync('./vn-stats.json');
 	let ret = JSON.parse(jsonVal);
 	if (!("last_vn_id" in ret) || isNaN(ret.last_vn_id))
-		return 1;
+		return 0;
 
 	return ret.last_vn_id
 }
