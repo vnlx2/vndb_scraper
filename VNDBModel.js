@@ -11,7 +11,7 @@ const VisualNovel = mongoose.Schema({
         type: String,
         required: true
     },
-    alias: {
+    aliases: {
         type: String
     },
     length: {

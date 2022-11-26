@@ -32,7 +32,7 @@ async function insert_to_db(result)
 	const body = {
 		code: result.id,
 		title: result.title,
-		alias: result.alias,
+		aliases: result.aliases,
 		length: result.length,
 		rating: result.rating,
 		description: result.image,
