@@ -7,19 +7,24 @@ import fs from 'fs';
 
 config();
 
-mongoose.connect(process.env.MONGODB_URI, {
-	useNewUrlParser: true,
-	useUnifiedTopology: true
-});
-
-const init_db = () =>
-	mongoose.connection
-		.on('error', (error) => console.error(error))
-		.once('open', () => console.log('Database Connected'));
-
 async function get_vn_by_code(code)
 {
 	return await vndb.query(`get vn details,basic,stats (id = ${code})`);
+}
+
+async function get_number_of_vndb_vns()
+{
+	let res = await vndb.query("dbstats");
+
+	if (!("vn" in res))
+		throw Error("Error, vndb malformed response");
+
+	return res.vn;
+}
+
+async function get_number_of_our_vns()
+{
+	return await model.countDocuments();
 }
 
 async function insert_to_db(result)
@@ -65,32 +70,61 @@ function save_last_id(id)
 
 function get_last_id()
 {
-	if (fs.existsSync('./vn-stats.json')) {
-		const jsonVal = require('./vn-stats.json');
-		return jsonVal['last_vn_id'];
-	}
+	if (!fs.existsSync('./vn-stats.json'))
+		return 1;
 
-	return 1;
+	const jsonVal = fs.readFileSync('./vn-stats.json');
+	let ret = JSON.parse(jsonVal);
+	if (!("last_vn_id" in ret) || isNaN(ret.last_vn_id))
+		return 1;
+
+	return ret.last_vn_id
 }
 
-async function main()
+function sleep(ms)
 {
-	init_db();
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
 
-	let code = 40029;
-	let i;
+async function start_scrape()
+{
+	let i = get_last_id() + 1;
 
-	i = code - 5;
-	while (i++) {
+	while (true) {
+		let nr_vns_ours = get_number_of_our_vns();
+		let nr_vns_vndb = get_number_of_vndb_vns();
+
+		if (nr_vns_vndb == nr_vns_ours)
+			break;
+
 		console.log(`Scraping VN ${i}...`);
 		let ret = await scrape_vn_and_save_to_db(i);
 		if (!ret)
 			break;
+
 		console.log(`Successfully scraped VN ${i}`);
+		save_last_id(i);
+		i++;
+		await sleep(1000);
 	}
-	console.log(`Last VN ID is ${code}`);
-	save_last_id(i);
 	process.exit();
+}
+
+function main()
+{
+	mongoose.connect(process.env.MONGODB_URI, {
+		useNewUrlParser: true,
+		useUnifiedTopology: true
+	});
+
+	mongoose.connection
+		.on('error', (error) => console.error(error))
+		.once('open', async function () {
+			console.log('Database Connected');
+			await start_scrape();
+		});
 }
 
 main();
