@@ -45,7 +45,7 @@ async function insert_to_db(results, currentCode)
 			aliases: result.aliases,
 			length: result.length,
 			rating: result.rating,
-			description: result.image,
+			description: result.description,
 			image: result.image
 		};
 		documents.push(body);
