@@ -1,0 +1,10 @@
+--- node_modules/vndb-api/lib/utils.js	2022-11-26 11:44:58.930000000 +0700
++++ node_modules/vndb-api/lib/utils.js	2022-12-29 04:10:50.520111690 +0700
+@@ -44,6 +44,7 @@
+  */
+ function parseResponse(query, response) {
+     var _a;
++    response = response.replace(/\r?\n|\r|\u2028|\u2029/g, "");
+     var status = response.match(/(\S+) {/)[1];
+     var rawBody = response.match(/{.+}/)[0];
+     var body = JSON.parse(rawBody);
