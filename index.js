@@ -39,13 +39,15 @@ async function insert_to_db(results, currentCode)
 			console.log(`Failed to scrape VN ${currentCode}`);
 			currentCode++;
 		}
+		console.log(`Create body for VN ${currentCode}`);
+		console.log(`Description ${currentCode} : ${result.description}`);
 		const body = {
 			code: result.id,
 			title: result.title,
 			aliases: result.aliases,
 			length: result.length,
 			rating: result.rating,
-			description: result.description,
+			description: (!result.description) ? '-' : result.description,
 			image: result.image
 		};
 		documents.push(body);
