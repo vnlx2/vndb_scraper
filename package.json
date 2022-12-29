@@ -12,6 +12,8 @@
     "fs": "^0.0.1-security",
     "mongoose": "^6.7.3",
     "mongose": "^0.0.2-security",
+    "pino": "^8.8.0",
+    "pino-pretty": "^9.1.1",
     "vndb-api": "^1.0.3"
   }
 }
