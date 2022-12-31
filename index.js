@@ -34,9 +34,12 @@ async function get_number_of_our_vns()
 async function insert_to_db(results, currentCode, errorCounter)
 {
 	const documents = [];
-	let lastCode = currentCode;
+	// Set expectation of last code after scraping
+	let lastCode = currentCode + 10;
+
+	// Add result to model
 	for(const result of results) {
-		logger.info(`Processing ${result.id} and current code is ${currentCode}`);
+		logger.info(`Processing ${result.id} and current code ${currentCode}`);
 		while(parseInt(currentCode) < parseInt(result.id)) {
 			console.log(`Failed to scrape VN ${currentCode}`);
 			logger.error(`Failed to scrape ${currentCode}`);
@@ -53,35 +56,36 @@ async function insert_to_db(results, currentCode, errorCounter)
 			image: result.image
 		};
 		documents.push(body);
-		lastCode = currentCode;
 		currentCode++;
 	}
 	/** 
-	 * When lastCode not reach multiple 10, return error
-	 * and add 1 to lastCode
+	 * When last code not reach with last vn codes that want to scrap, 
+	 * return error and add 1 to current code
 	*/  
-	if(lastCode % 10) {
-		lastCode++;
+	if(lastCode != currentCode) {
+		currentCode++;
 		console.log(`Failed to scrape VN ${lastCode}`);
 		logger.error(`Failed to scrape ${currentCode}`);
 		errorCounter++;
 	}
 
-	// Store vn data and return lastCode
+	// Store vn data and return last code and error counter
 	const response = model;
 	await response.insertMany(documents);
 	logger.info(`Last Code after scrap ${lastCode} and error counter ${errorCounter}`);
-	return {lastCode: lastCode, errorCounter: errorCounter};
+	return {lastCode: currentCode-1, errorCounter: errorCounter};
 }
 
 async function scrape_vn_and_save_to_db(lastCode, remainsVN, errorCounter)
 {
 	// Generate vndb code sequences
+	// Get length of array of code
 	const length = (remainsVN >= 10) ? 10 : remainsVN;
 
 	console.log(`Scraping VN ${lastCode} - ${lastCode + length - 1}...`);
 	logger.info(`Scraping VN ${lastCode} - ${lastCode + length - 1}...`);
 
+	// Generate array of codes based from last code to last code + length
 	const codes = [...Array(length).keys()].map(code => code + lastCode);
 
 	// Get VN data
@@ -94,9 +98,13 @@ async function scrape_vn_and_save_to_db(lastCode, remainsVN, errorCounter)
 			errorCounter: errorCounter,
 		};
 	}
-	logger.info(`Total of success vn scrap: ${response.length}`);
+	logger.info(`Total of success vn scrap: ${response.items.length}`);
 
-	const result = await insert_to_db(response.items, lastCode, errorCounter);
+	// Store to db
+	const result = await insert_to_db(
+		response.items, lastCode,  errorCounter
+		);
+	
 	return {
 		status: true,
 		lastCode: result.lastCode,
@@ -137,6 +145,7 @@ function sleep(ms)
 
 async function start_scrape()
 {
+	// Get Last VN Code and Error Counter
 	const lastIdAndErrorCounter = get_last_id_and_error_counter();
 	let i = lastIdAndErrorCounter.lastVNId + 1;
 	let errorCount = lastIdAndErrorCounter.errorCount;
@@ -157,9 +166,8 @@ async function start_scrape()
 
 		console.log(`Successfully scraped VN ${i} - ${ret.lastCode}`);
 		logger.info(`Successfully scraped VN ${i} - ${ret.lastCode}`);
-		console.log(`Status (${i} - ${ret.lastCode}) : ${ret.lastCode} - ${ret.errorCounter}`);
 		save_last_id_and_error_counter(ret.lastCode, ret.errorCounter);
-		i = ret.lastCode + 1;
+		i = ret.lastCode+1;
 		errorCount = ret.errorCounter;
 		await sleep(1000);
 	}
