@@ -5,7 +5,9 @@ import mongoose from "mongoose";
 const VisualNovel = mongoose.Schema({
     code: {
         type: String,
-        required: true
+        required: true,
+        index: true,
+        unique: true,
     },
     title: {
         type: String,

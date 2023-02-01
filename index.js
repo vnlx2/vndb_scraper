@@ -70,8 +70,12 @@ async function insert_to_db(results, currentCode, errorCounter)
 	}
 
 	// Store vn data and return last code and error counter
-	const response = model;
-	await response.insertMany(documents);
+	try {
+		const response = model;
+		await response.insertMany(documents, {ordered : false });
+	} catch (err) {
+		console.error(err);
+	}
 	logger.info(`Last Code after scrap ${lastCode} and error counter ${errorCounter}`);
 	return {lastCode: currentCode-1, errorCounter: errorCounter};
 }
