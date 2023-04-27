@@ -13,6 +13,7 @@
     "mongoose": "^6.7.3",
     "mongoose-fuzzy-searching": "^2.0.2",
     "mongose": "^0.0.2-security",
+    "node-cron": "^3.0.2",
     "pino": "^8.8.0",
     "pino-pretty": "^9.1.1",
     "vndb-api": "^1.0.3"
