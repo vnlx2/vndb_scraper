@@ -1,7 +1,7 @@
 {
   "name": "vndb_scraper",
-  "version": "1.0.1",
-  "description": "VNDB Scrapper for ATRI",
+  "version": "1.0.6",
+  "description": "VNDB Scrapper for ATRI and Desonovel",
   "type": "module",
   "main": "index.js",
   "repository": "git@github.com:vnlx2/vndb_scraper.git",
