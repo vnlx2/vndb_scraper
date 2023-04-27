@@ -49,7 +49,7 @@ async function insert_to_db(results, currentCode, errorCounter)
 		const body = {
 			code: result.id,
 			title: result.title,
-			aliases: result.aliases,
+			aliases: (result.aliases != null) ? result.aliases.split(/\r?\n/) : null,
 			length: result.length,
 			rating: result.rating,
 			description: (!result.description) ? '-' : result.description,
