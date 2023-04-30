@@ -37,11 +37,12 @@ VisualNovelSchema.plugin(mongoose_fuzzy_searching, { fields: [
     {
         name: 'title',
         minSize: 3,
-        weight: 3
+        weight: 1
     },
     {
         name: 'aliases',
         minSize: 3,
+        weight: 3,
         prefixOnly: true
     }
 ] });

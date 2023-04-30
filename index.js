@@ -19,7 +19,7 @@ async function get_vn_by_code(codes)
 	}
 }
 
-async function insert_to_db(results, currentCode)
+async function insert_to_db(results, currentCode, progressBar)
 {
 	const documents = [];
 
@@ -40,6 +40,7 @@ async function insert_to_db(results, currentCode)
 			image: result.image
 		};
 		documents.push(body);
+		progressBar.increment();
 		currentCode++;
 	}
 
@@ -48,6 +49,7 @@ async function insert_to_db(results, currentCode)
 		const response = model;
 		await response.insertMany(documents, {ordered : false });
 	} catch (err) {
+		progressBar.stop();
 		throw err;
 	}
 	return currentCode;
@@ -70,39 +72,74 @@ function sleep(ms)
 	});
 }
 
-async function scrape_vn_and_save_to_db(lastCode, remainsVN, batch, errorCount)
+async function scrape_vn_and_save_to_db(lastCode, remainsVN, batchesNumber, errorCount)
 {
-	const progressBar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-	progressBar.start(batch, 0);
-
+	console.info('\nStart Scraping')
+	
 	try {
+		// Start timer calculation
 		let start = performance.now();
-		while (batch > 0) {
-			const length = (remainsVN >= 10) ? 10 : remainsVN;
-			// Generate array of codes based from last code to last code + length
-			const codes = [...Array(length).keys()].map(code => code + lastCode);
+
+		for (let batchNumber = 0; batchNumber < batchesNumber; batchNumber++) {
+			// Initialize progress bar
+			const progressBar = new cliProgress.SingleBar({
+				clearOnComplete: false,
+				hideCursor: false,
+				format: ' {bar} | Batch : {batchNumber} | ETA : {eta}s | {value}/{total} | {startCode}/{endCode}'
+			}, cliProgress.Presets.legacy);
+
+			// Calculate target size of batch
+			const targetSize = (remainsVN >= 10) ? 10 : remainsVN;
+
+			// Generate array of codes based from last code to last code + targetSize
+			let batchCodes = [...Array(targetSize).keys()].map(code => code + lastCode);
 	
 			// Scrap from vndb
-			const response = await get_vn_by_code(codes);
-			if (!response) {
+			console.log(`\nFetching batch ${batchNumber+1} from VNDB...`);
+			progressBar.start(targetSize, 0, {
+				batchNumber: batchNumber+1,
+				startCode: lastCode,
+				endCode: '-'
+			});
+			let batchResult = await get_vn_by_code(batchCodes);
+
+			if (!batchResult) {
 				console.log("Internal error");
 				save_last_id_and_error_counter(lastCode, errorCount);
 				progressBar.stop();
 				break;
+			}			
+			batchResult = batchResult.items;
+			logger.info(`Total of success vn scraped [Code ${batchCodes[0]} - ${batchCodes[batchCodes.length-1]}] : ${batchResult.length}`);
+
+			// When batch result's size not reach target size, generate array of code
+			// with length equal to sum of remains of target size. and scrap it
+			// until batch result's size equals with target size.
+			while (batchResult.length < targetSize) {
+				const batchResultLength = batchResult.length;
+				batchCodes = [...Array(targetSize - batchResultLength).keys()]
+					.map(code => code + (batchCodes[batchCodes.length - 1] + 1));
+				const additionalBatchResult = await get_vn_by_code(batchCodes);
+				if (additionalBatchResult.items.length > 0) {
+					batchResult = [...batchResult, ...additionalBatchResult.items];
+				}
 			}
-			logger.info(`Total of success vn scraped: ${response.items.length}`);
-			
-			// Store to db
-			lastCode = await insert_to_db(response.items, lastCode);
+
+			// Update end code with last code from batch result
+			progressBar.update(0, {
+				endCode: batchResult[length-1].id
+			});
+
+			// Store batch result to database and store last code
+			// then pause it for a second.
+			lastCode = await insert_to_db(batchResult, lastCode, progressBar);
 			save_last_id_and_error_counter(lastCode);
-			batch--;
 			remainsVN -= length;
-			progressBar.increment();
 			await sleep(1000);
 		}
+		// Return the length of time required for scraping
 		return performance.now() - start;
 	} catch (err) {
-		progressBar.stop();
 		throw err;
 	}
 }
@@ -137,7 +174,7 @@ async function get_number_of_our_vns()
 
 async function start_scrape()
 {
-	console.log('\nStart Scraping');
+	console.log('\nChecking new update');
 	// Get Last VN Code and Error Counter
 	const lastIdAndErrorCounter = get_last_id_and_error_counter();
 	let lastCode = lastIdAndErrorCounter.lastVNId;
@@ -153,19 +190,25 @@ async function start_scrape()
 		errorCount = 0;
 	}
 
-	console.info(`There are ${remains} vn that not added.`);
+	if (remains === 0) {
+		console.info('Database updated');
+		return;
+	}
+
+	console.info(`There are ${remains} new vn that not added.`);
 	logger.info(`VN Stat : { 
 		our_vn_count: ${nr_our_vns}, vndb_count: ${nr_vns_vndb}, 
 		remains: ${remains} }`);
 	
 	// Calculate batch
 	const batches = Math.ceil(remains / 10);
+	console.info(`Scraping in ${batches} batches`);
 
 	// Execution
 	try {
 		const timer = await scrape_vn_and_save_to_db(lastCode, remains, batches,
 			errorCount);	
-		console.log('\n\nScraping VN Success');
+		console.log('\n\nScraping VN Finished');
 
 		const current_nr_our_vns = await get_number_of_our_vns();
 		console.log(`Success : ${current_nr_our_vns - nr_our_vns}`);
